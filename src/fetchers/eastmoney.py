@@ -1,0 +1,137 @@
+"""
+东方财富直接 API 数据获取器
+直接调用东方财富 API，避免第三方库网络问题
+"""
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class EastMoneyFetcher:
+    """东方财富数据获取器"""
+
+    def __init__(self, request_interval: float = 0.5):
+        self.request_interval = request_interval
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://quote.eastmoney.com/'
+        })
+
+    def _safe_request(self, url: str, params: dict = None, max_retries: int = 3):
+        """安全请求"""
+        for attempt in range(max_retries):
+            try:
+                time.sleep(self.request_interval)
+                resp = self.session.get(url, params=params, timeout=15)
+                resp.raise_for_status()
+                return resp.json()
+            except Exception as e:
+                logger.warning(f"请求失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                else:
+                    raise
+
+    def fetch_kline(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        获取K线数据
+        
+        Args:
+            stock_code: 股票代码 (如 '600519')
+            start_date: 开始日期 YYYYMMDD
+            end_date: 结束日期 YYYYMMDD
+            
+        Returns:
+            DataFrame
+        """
+        # 判断市场代码
+        if stock_code.startswith('6'):
+            secid = f"1.{stock_code}"  # 上海
+        elif stock_code.startswith(('0', '3')):
+            secid = f"0.{stock_code}"  # 深圳
+        elif stock_code.startswith('8') or stock_code.startswith('4'):
+            secid = f"0.{stock_code}"  # 北京
+        else:
+            secid = f"1.{stock_code}"
+        
+        url = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+        
+        params = {
+            "secid": secid,
+            "fields1": "f1,f2,f3,f4,f5,f6",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+            "klt": "101",  # 日K
+            "fqt": "1",    # 前复权
+            "beg": start_date,
+            "end": end_date,
+            "lmt": "1000000"
+        }
+        
+        logger.info(f"获取 {stock_code} K线数据: {start_date} - {end_date}")
+        
+        try:
+            data = self._safe_request(url, params)
+            
+            if data.get('data') is None:
+                logger.warning(f"未获取到 {stock_code} 的数据")
+                return pd.DataFrame()
+            
+            klines = data['data']['klines']
+            
+            if not klines:
+                logger.warning(f"获取到空数据: {stock_code}")
+                return pd.DataFrame()
+            
+            # 解析数据
+            records = []
+            for kline in klines:
+                parts = kline.split(',')
+                records.append({
+                    '日期': parts[0],
+                    '开盘': float(parts[1]),
+                    '收盘': float(parts[2]),
+                    '最高': float(parts[3]),
+                    '最低': float(parts[4]),
+                    '成交量': int(parts[5]),
+                    '成交额': float(parts[6]) if parts[6] else 0,
+                    '振幅': float(parts[7]) if parts[7] else 0,
+                    '涨跌幅': float(parts[8]) if parts[8] else 0,
+                    '涨跌额': float(parts[9]) if parts[9] else 0,
+                    '换手率': float(parts[10]) if parts[10] else 0,
+                })
+            
+            df = pd.DataFrame(records)
+            df['股票代码'] = stock_code
+            
+            logger.info(f"成功获取 {stock_code}: {len(df)} 条数据")
+            return df
+            
+        except Exception as e:
+            logger.error(f"获取 {stock_code} 失败: {e}")
+            return pd.DataFrame()
+
+    def get_realtime_quote(self, stock_code: str) -> dict:
+        """获取实时行情"""
+        if stock_code.startswith('6'):
+            secid = f"1.{stock_code}"
+        else:
+            secid = f"0.{stock_code}"
+        
+        url = "https://push2.eastmoney.com/api/qt/stock/get"
+        params = {
+            "secid": secid,
+            "fields": "f57,f58,f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f59,f60,f116,f117,f162,f167,f168,f169,f170,f171,f173,f177"
+        }
+        
+        try:
+            data = self._safe_request(url, params)
+            if data.get('data'):
+                return data['data']
+        except Exception as e:
+            logger.error(f"获取实时行情失败: {e}")
+        return {}

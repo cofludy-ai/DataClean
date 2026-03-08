@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fetchers.akshare import AkshareFetcher
+from fetchers.eastmoney import EastMoneyFetcher
 from processors import BasicCleaner, PriceAdjuster
 from storage import DataStorage
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # 测试股票列表（10只）
 DEFAULT_TEST_STOCKS = [
     '000001',  # 平安银行
-    '000002',  # 万 科Ａ
+    '000002',  # 万科A
     '600000',  # 浦发银行
     '600036',  # 招商银行
     '600519',  # 贵州茅台
@@ -38,6 +38,57 @@ DEFAULT_TEST_STOCKS = [
     '000858',  # 五粮液
     '600276',  # 恒瑞医药
 ]
+
+
+def generate_sample_data(stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """
+    生成模拟数据用于测试（当API不可用时）
+    """
+    import pandas as pd
+    from datetime import datetime, timedelta
+    
+    start = datetime.strptime(start_date, '%Y-%m-%d')
+    end = datetime.strptime(end_date, '%Y-%m-%d')
+    
+    # 生成交易日（跳过周末）
+    dates = []
+    current = start
+    while current <= end:
+        if current.weekday() < 5:  # 周一到周五
+            dates.append(current.strftime('%Y-%m-%d'))
+        current += timedelta(days=1)
+    
+    # 生成模拟数据
+    import random
+    random.seed(int(stock_code) if stock_code.isdigit() else 12345)
+    
+    base_price = random.uniform(10, 200)
+    data = []
+    for date in dates:
+        open_p = base_price * random.uniform(0.98, 1.02)
+        close_p = base_price * random.uniform(0.97, 1.03)
+        high_p = max(open_p, close_p) * random.uniform(1.00, 1.05)
+        low_p = min(open_p, close_p) * random.uniform(0.95, 1.00)
+        volume = random.randint(1000000, 50000000)
+        amount = volume * random.uniform(10, 100)
+        
+        data.append({
+            '日期': date,
+            '股票代码': stock_code,
+            '开盘': round(open_p, 2),
+            '收盘': round(close_p, 2),
+            '最高': round(high_p, 2),
+            '最低': round(low_p, 2),
+            '成交量': volume,
+            '成交额': round(amount, 2),
+            '振幅': round(random.uniform(0, 5), 2),
+            '涨跌幅': round(random.uniform(-5, 5), 2),
+            '涨跌额': round(random.uniform(-10, 10), 2),
+            '换手率': round(random.uniform(0, 5), 2)
+        })
+        base_price = close_p
+    
+    return pd.DataFrame(data)
 
 
 def parse_args():
@@ -98,11 +149,12 @@ def fetch_and_clean(
     stock_code: str,
     start_date: str,
     end_date: str,
-    fetcher: AkshareFetcher,
+    fetcher: EastMoneyFetcher,
     cleaner: BasicCleaner,
     adjuster: PriceAdjuster,
     storage: DataStorage,
-    save_format: str
+    save_format: str,
+    use_mock: bool = False
 ) -> bool:
     """
     获取并清洗单只股票数据
@@ -116,6 +168,7 @@ def fetch_and_clean(
         adjuster: 复权处理器
         storage: 存储
         save_format: 保存格式
+        use_mock: 是否使用模拟数据（当API不可用时）
 
     Returns:
         是否成功
@@ -126,11 +179,24 @@ def fetch_and_clean(
     try:
         # 1. 获取数据
         logger.info(f"获取数据: {start_date} - {end_date}")
-        df_raw = fetcher.fetch_daily(stock_code, start_date, end_date)
+        
+        try:
+            df_raw = fetcher.fetch_daily(stock_code, start_date, end_date)
+        except Exception as e:
+            logger.warning(f"API获取失败: {e}")
+            if use_mock:
+                logger.info("使用模拟数据...")
+                df_raw = generate_sample_data(stock_code, start_date, end_date)
+            else:
+                df_raw = pd.DataFrame()
 
         if df_raw.empty:
             logger.warning(f"未获取到 {stock_code} 的数据")
-            return False
+            if use_mock:
+                df_raw = generate_sample_data(stock_code, start_date, end_date)
+                logger.info(f"生成了模拟数据: {len(df_raw)} 条")
+            else:
+                return False
 
         logger.info(f"原始数据: {len(df_raw)} 条")
 
@@ -172,7 +238,7 @@ def main():
     logger.info("=" * 50)
 
     # 初始化组件
-    fetcher = AkshareFetcher(request_interval=1.0)
+    fetcher = EastMoneyFetcher(request_interval=0.5)
     cleaner = BasicCleaner()
     adjuster = PriceAdjuster(method=args.adjust)
     storage = DataStorage(args.data_dir)

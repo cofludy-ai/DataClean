@@ -36,17 +36,20 @@ class AkshareFetcher(BaseFetcher):
     def _safe_request(self, func, *args, **kwargs):
         """带重试的安全请求"""
         max_retries = 3
+        last_error = None
         for attempt in range(max_retries):
             try:
                 time.sleep(self.request_interval)  # 请求间隔
                 result = func(*args, **kwargs)
                 return result
             except Exception as e:
+                last_error = e
                 logger.warning(f"请求失败 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(5 * (attempt + 1))  # 递增等待
-                else:
-                    raise
+        # 所有重试都失败
+        logger.error(f"请求最终失败: {last_error}")
+        raise last_error
 
     def fetch_daily(
         self,
@@ -86,9 +89,16 @@ class AkshareFetcher(BaseFetcher):
                 adjust="qfq"  # 前复权
             )
 
-            if df is None or df.empty:
-                logger.warning(f"未获取到 {stock_code} 的数据")
+            # 检查返回结果
+            if df is None:
+                logger.warning(f"获取 {stock_code} 的数据为 None")
                 return pd.DataFrame()
+            
+            if df.empty:
+                logger.warning(f"获取 {stock_code} 的数据为空（可能日期范围无交易或股票代码错误）")
+                return pd.DataFrame()
+            
+            logger.info(f"成功获取 {stock_code} 数据: {len(df)} 条")
 
             # 统一列名
             df = df.rename(columns={

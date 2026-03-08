@@ -2,6 +2,6 @@
 数据获取器模块
 """
 from .base import BaseFetcher
-from .akshare import AkshareFetcher
+from .eastmoney import EastMoneyFetcher
 
-__all__ = ['BaseFetcher', 'AkshareFetcher']
+__all__ = ['BaseFetcher', 'EastMoneyFetcher']
