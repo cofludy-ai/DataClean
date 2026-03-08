@@ -68,8 +68,14 @@ class DataVisualizer:
         if title is None:
             title = f"{stock_code} K线图"
 
-        # 创建K线图
-        fig = go.Figure()
+        # 创建子图：上面是K线，下面是成交量
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=('价格', '成交量'),
+            row_heights=[0.7, 0.3]  # K线占70%，成交量占30%
+        )
 
         # K线
         fig.add_trace(go.Candlestick(
@@ -81,7 +87,7 @@ class DataVisualizer:
             name='K线',
             increasing_line_color='red',
             decreasing_line_color='green'
-        ))
+        ), row=1, col=1)
 
         # 成交量
         colors = ['red' if df['close'].iloc[i] >= df['open'].iloc[i] else 'green' 
@@ -92,8 +98,8 @@ class DataVisualizer:
             y=df['volume'],
             name='成交量',
             marker_color=colors,
-            yaxis='y2'
-        ))
+            showlegend=False
+        ), row=2, col=1)
 
         # 布局
         fig.update_layout(
@@ -101,25 +107,34 @@ class DataVisualizer:
             xaxis_rangeslider_visible=False,
             width=width,
             height=height,
-            yaxis=dict(title='价格'),
-            yaxis2=dict(
-                title='成交量',
-                overlaying='y',
-                side='right'
-            ),
-            xaxis=dict(
-                title='日期',
-                rangeselector=dict(
-                    buttons=[
-                        dict(count=1, label='1M', step='month', stepmode='backward'),
-                        dict(count=3, label='3M', step='month', stepmode='backward'),
-                        dict(count=6, label='6M', step='month', stepmode='backward'),
-                        dict(count=1, label='1Y', step='year', stepmode='backward'),
-                        dict(step='all', label='ALL')
-                    ]
-                )
-            ),
-            template='plotly_white'
+            template='plotly_white',
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+
+        # Y轴设置
+        fig.update_yaxes(title_text="价格", row=1, col=1)
+        fig.update_yaxes(title_text="成交量", row=2, col=1)
+        
+        # X轴设置
+        fig.update_xaxes(
+            title_text="日期",
+            row=2, col=1,
+            rangeselector=dict(
+                buttons=[
+                    dict(count=1, label='1M', step='month', stepmode='backward'),
+                    dict(count=3, label='3M', step='month', stepmode='backward'),
+                    dict(count=6, label='6M', step='month', stepmode='backward'),
+                    dict(count=1, label='1Y', step='year', stepmode='backward'),
+                    dict(step='all', label='ALL')
+                ]
+            )
         )
 
         # 保存
@@ -264,9 +279,28 @@ class DataVisualizer:
         for period in ma_periods:
             df[f'MA{period}'] = df['close'].rolling(window=period).mean()
 
-        fig = self.plot_candlestick(df, stock_code, save_path=save_path)
+        # 使用子图
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=('价格 + 均线', '成交量'),
+            row_heights=[0.7, 0.3]
+        )
 
-        # 添加均线
+        # K线
+        fig.add_trace(go.Candlestick(
+            x=df['date'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='K线',
+            increasing_line_color='red',
+            decreasing_line_color='green'
+        ), row=1, col=1)
+
+        # 均线
         colors = ['orange', 'blue', 'purple', 'brown']
         for i, period in enumerate(ma_periods):
             if f'MA{period}' in df.columns:
@@ -275,8 +309,30 @@ class DataVisualizer:
                     y=df[f'MA{period}'],
                     mode='lines',
                     name=f'MA{period}',
-                    line=dict(color=colors[i % len(colors)], width=1)
-                ))
+                    line=dict(color=colors[i % len(colors)], width=1.5)
+                ), row=1, col=1)
+
+        # 成交量
+        colors = ['red' if df['close'].iloc[i] >= df['open'].iloc[i] else 'green' 
+                  for i in range(len(df))]
+        fig.add_trace(go.Bar(
+            x=df['date'],
+            y=df['volume'],
+            name='成交量',
+            marker_color=colors,
+            showlegend=False
+        ), row=2, col=1)
+
+        fig.update_layout(
+            title=f"{stock_code} K线图 + 均线",
+            xaxis_rangeslider_visible=False,
+            template='plotly_white',
+            height=800
+        )
+
+        if save_path:
+            fig.write_html(save_path)
+            logger.info(f"均线图已保存: {save_path}")
 
         return fig
 
