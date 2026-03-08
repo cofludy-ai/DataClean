@@ -166,3 +166,48 @@ class EastMoneyFetcher:
         except Exception as e:
             logger.error(f"获取实时行情失败: {e}")
         return {}
+
+    def get_stock_list(self) -> list:
+        """获取A股股票列表"""
+        import pandas as pd
+        
+        # 方法1: 使用 AkShare
+        try:
+            import akshare as ak
+            df = ak.stock_info_a_code_name()
+            return df['code'].tolist() if 'code' in df.columns else []
+        except Exception as e:
+            logger.warning(f"AkShare获取失败: {e}")
+        
+        # 方法2: 直接从东方财富获取
+        try:
+            url = "https://push2.eastmoney.com/api/qt/stock/get"
+            params = {
+                "fltt": "2",
+                "fields": "f12,f13,f14",
+                "secids": "1.000001,0.399001"
+            }
+            # 这个接口只能获取少量测试数据
+            
+            # 使用另一个接口获取全部股票
+            url2 = "https://61.129.115.115/api/ul/qt/clist/get"
+            params2 = {
+                "pn": 1,
+                "pz": 5000,
+                "po": 1,
+                "np": 1,
+                "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+                "fltt": 2,
+                "invt": 2,
+                "fid": "f3",
+                "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
+            }
+            
+            data = self._safe_request(url2, params2)
+            if data and data.get('data'):
+                stocks = data['data']['diff']
+                return [str(s['f12']) for s in stocks]
+        except Exception as e:
+            logger.error(f"东方财富API获取失败: {e}")
+        
+        return []
