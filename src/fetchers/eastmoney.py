@@ -49,6 +49,37 @@ class EastMoneyFetcher:
         Returns:
             DataFrame
         """
+        # 转换日期格式
+        start = self._convert_date(start_date)
+        end = self._convert_date(end_date)
+        
+        return self._fetch_kline_impl(stock_code, start, end)
+    
+    def fetch_daily(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        获取日线数据（fetch_kline 的别名）
+        
+        Args:
+            stock_code: 股票代码 (如 '600519')
+            start_date: 开始日期 (YYYYMMDD 或 YYYY-MM-DD)
+            end_date: 结束日期 (YYYYMMDD 或 YYYY-MM-DD)
+            
+        Returns:
+            DataFrame
+        """
+        # 转换日期格式
+        start = self._convert_date(start_date)
+        end = self._convert_date(end_date)
+        
+        return self._fetch_kline_impl(stock_code, start, end)
+    
+    def _convert_date(self, date_str: str) -> str:
+        """转换日期格式为 YYYYMMDD"""
+        if "-" in date_str:
+            return date_str.replace("-", "")
+        return date_str
+    
+    def _fetch_kline_impl(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         # 判断市场代码
         if stock_code.startswith('6'):
             secid = f"1.{stock_code}"  # 上海
