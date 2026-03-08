@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fetchers.eastmoney import EastMoneyFetcher
 from processors import BasicCleaner, PriceAdjuster
 from storage import DataStorage
+import pandas as pd
 
 # 配置日志
 logging.basicConfig(
