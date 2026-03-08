@@ -40,11 +40,11 @@ class PriceAdjuster:
         df = df.copy()
 
         # 检查是否需要复权
-        if '复权类型' in df.columns:
+        if 'adj_type' in df.columns:
             logger.info("数据已是复权数据，跳过复权处理")
             return df
 
-        # 注意：AkShare 的 stock_zh_a_hist 已经支持 adjust="qfq"
+        # 注意：东方财富 API 的 kline 接口已经支持 adjust="qfq"
         # 这里可以做额外的复权验证和处理
 
         # 验证价格合理性
@@ -58,30 +58,30 @@ class PriceAdjuster:
             return df
 
         # 确保价格列存在
-        price_cols = ['开盘', '收盘', '最高', '最低']
+        price_cols = ['open', 'close', 'high', 'low']
         if not all(col in df.columns for col in price_cols):
             logger.warning("缺少价格列，跳过价格验证")
             return df
 
         # 标记异常价格
-        df['价格异常'] = False
+        df['price_abnormal'] = False
 
-        # 检查：最高价 >= 最低价
-        mask = df['最高'] < df['最低']
-        df.loc[mask, '价格异常'] = True
+        # 检查：high >= low
+        mask = df['high'] < df['low']
+        df.loc[mask, 'price_abnormal'] = True
         if mask.any():
-            logger.warning(f"发现 {mask.sum()} 条最高价 < 最低价的异常记录")
+            logger.warning(f"发现 {mask.sum()} 条 high < low 的异常记录")
 
-        # 检查：收盘价应该在最高价和最低价之间（或相等）
-        mask = (df['收盘'] > df['最高']) | (df['收盘'] < df['最低'])
-        df.loc[mask, '价格异常'] = True
+        # 检查：close 应该在 high 和 low 之间（或相等）
+        mask = (df['close'] > df['high']) | (df['close'] < df['low'])
+        df.loc[mask, 'price_abnormal'] = True
         if mask.any():
-            logger.warning(f"发现 {mask.sum()} 条收盘价超出高低价范围的异常记录")
+            logger.warning(f"发现 {mask.sum()} 条 close 超出 high-low 范围的异常记录")
 
         # 检查：价格是否为正数
         for col in price_cols:
             mask = df[col] <= 0
-            df.loc[mask, '价格异常'] = True
+            df.loc[mask, 'price_abnormal'] = True
             if mask.any():
                 logger.warning(f"发现 {mask.sum()} 条 {col} <= 0 的异常记录")
 
@@ -89,18 +89,18 @@ class PriceAdjuster:
 
     def calculate_returns(self, df: pd.DataFrame) -> pd.DataFrame:
         """计算收益率"""
-        if df.empty or '收盘' not in df.columns:
+        if df.empty or 'close' not in df.columns:
             return df
 
         df = df.copy()
 
         # 按日期排序
-        df = df.sort_values('日期')
+        df = df.sort_values('date')
 
         # 日收益率
-        df['日收益率'] = df['收盘'].pct_change()
+        df['daily_return'] = df['close'].pct_change()
 
         # 累计收益率
-        df['累计收益率'] = (1 + df['日收益率']).cumprod() - 1
+        df['cumulative_return'] = (1 + df['daily_return']).cumprod() - 1
 
         return df

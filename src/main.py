@@ -143,6 +143,18 @@ def parse_args():
         help='保存格式'
     )
 
+    parser.add_argument(
+        '--merge',
+        action='store_true',
+        help='增量合并到主数据文件'
+    )
+
+    parser.add_argument(
+        '--master-file',
+        default='all_stocks.csv',
+        help='主数据文件名'
+    )
+
     return parser.parse_args()
 
 
@@ -265,6 +277,12 @@ def main():
 
         if success:
             success_count += 1
+            
+            # 增量合并到主数据文件
+            if args.merge:
+                df_clean = storage.load_clean(stock_code, args.save_format)
+                if not df_clean.empty:
+                    storage.merge_incremental(df_clean, args.master_file, args.save_format)
         else:
             fail_count += 1
 

@@ -123,21 +123,21 @@ class EastMoneyFetcher:
             for kline in klines:
                 parts = kline.split(',')
                 records.append({
-                    '日期': parts[0],
-                    '开盘': float(parts[1]),
-                    '收盘': float(parts[2]),
-                    '最高': float(parts[3]),
-                    '最低': float(parts[4]),
-                    '成交量': int(parts[5]),
-                    '成交额': float(parts[6]) if parts[6] else 0,
-                    '振幅': float(parts[7]) if parts[7] else 0,
-                    '涨跌幅': float(parts[8]) if parts[8] else 0,
-                    '涨跌额': float(parts[9]) if parts[9] else 0,
-                    '换手率': float(parts[10]) if parts[10] else 0,
+                    'date': parts[0],
+                    'open': float(parts[1]),
+                    'close': float(parts[2]),
+                    'high': float(parts[3]),
+                    'low': float(parts[4]),
+                    'volume': int(parts[5]),
+                    'amount': float(parts[6]) if parts[6] else 0,
+                    'amplitude': float(parts[7]) if parts[7] else 0,
+                    'change_pct': float(parts[8]) if parts[8] else 0,
+                    'change': float(parts[9]) if parts[9] else 0,
+                    'turnover': float(parts[10]) if parts[10] else 0,
+                    'stock_code': stock_code
                 })
             
             df = pd.DataFrame(records)
-            df['股票代码'] = stock_code
             
             logger.info(f"成功获取 {stock_code}: {len(df)} 条数据")
             return df
