@@ -139,6 +139,36 @@ for issue in result['issues']:
 
 # 校验文件
 result = validator.validate_file('data/clean/600519_clean.csv')
+
+# ============ 数据可视化 ============
+from visualizer import DataVisualizer
+
+viz = DataVisualizer()
+
+# 绘制K线图（交互式HTML）
+fig = viz.plot_candlestick(
+    df, 
+    stock_code='600519',
+    save_path='data/visualization/kline_600519.html'
+)
+
+# 绘制带均线的K线图
+fig = viz.plot_ma(
+    df,
+    stock_code='600519',
+    ma_periods=[5, 10, 20, 60],
+    save_path='data/visualization/kline_ma.html'
+)
+
+# 绘制成交量
+fig = viz.plot_volume(df, save_path='data/visualization/volume.html')
+
+# 绘制收盘价折线
+fig = viz.plot_line(
+    df, 
+    columns=['close'],
+    title='600519 收盘价'
+)
 ```
 
 ## 数据格式
